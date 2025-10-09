@@ -135,7 +135,20 @@ def main():
     model = configs[args.model]
 
     if args.checkpoint is not None:
-        model.load_state_dict(torch.load(args.checkpoint, map_location='cpu'))
+        # HQ
+        # 方式1
+        pretrained_dict = torch.load(args.checkpoint, map_location='cpu')
+        model_dict = model.state_dict()
+        # 新模型结构共两个地方不兼容 原InspireMusic
+        # - key in model_dict 会排除 visual_feature_proj
+        # - 'llm_embedding' not in key 会排除 llm_embedding
+        pretrained_dict = {key: value for key, value in pretrained_dict.items() if (key in model_dict and 'llm_embedding' not in key)}
+        model_dict.update(pretrained_dict)
+        model.load_state_dict(model_dict)
+
+        # 方式2  strict=False :不完全匹配，只加载权重中存在的参数，不匹配就跳过
+        # model.load_state_dict(torch.load(args.checkpoint, map_location='cpu'),  strict=False)
+
     else:
         # Find and load the latest checkpoint
         checkpoint_files = glob.glob(os.path.join(args.model_dir, '*.pt'))

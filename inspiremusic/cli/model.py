@@ -119,7 +119,9 @@ class InspireMusicModel:
         del self.flow.decoder.estimator
         self.flow.decoder.estimator = onnxruntime.InferenceSession(flow_decoder_estimator_model, sess_options=option, providers=providers)
 
-    def llm_job(self, text, audio_token, audio_token_len, prompt_text, llm_prompt_audio_token, embeddings, uuid, duration_to_gen, task):
+    def llm_job(self, text, audio_token, audio_token_len, 
+            video_emb, video_emb_len, # HQ
+            prompt_text, llm_prompt_audio_token, embeddings, uuid, duration_to_gen, task):
         with self.llm_context:
             local_res = []
             with autocast(device_type='cuda', enabled=self.fp16, dtype=self.dtype, cache_enabled=True):
@@ -144,6 +146,17 @@ class InspireMusicModel:
                     inference_kwargs['audio_token_len'] = audio_token_len.to(self.device)
                 else:
                     inference_kwargs['audio_token_len'] = torch.Tensor([0]).to(self.device)
+
+                # HQ
+                if video_emb is not None:
+                    inference_kwargs['video_emb'] = video_emb.to(self.device)
+                else:
+                    inference_kwargs['video_emb'] = torch.Tensor([0]).to(self.device)
+
+                if video_emb_len is not None:
+                    inference_kwargs['video_emb_len'] = video_emb_len.to(self.device)
+                else:
+                    inference_kwargs['video_emb_len'] = torch.Tensor([0]).to(self.device)
 
                 for i in self.llm.inference(**inference_kwargs):
                     local_res.append(i)
@@ -195,7 +208,9 @@ class InspireMusicModel:
         return wav
 
     @torch.inference_mode()
-    def inference(self, text, audio_token, audio_token_len, text_token, text_token_len, embeddings=None,
+    def inference(self, text, audio_token, audio_token_len,
+                  video_emb, video_emb_len, # HQ
+                  text_token, text_token_len, embeddings=None,
                   prompt_text=torch.zeros(1, 0, dtype=torch.int32),
                   llm_prompt_audio_token=torch.zeros(1, 0, dtype=torch.int32),
                   flow_prompt_audio_token=torch.zeros(1, 0, dtype=torch.int32),
@@ -213,7 +228,8 @@ class InspireMusicModel:
             with self.lock:
                 self.music_token_dict[this_uuid], self.llm_end_dict[this_uuid] = [], False
             
-            p = threading.Thread(target=self.llm_job, args=(text_token, audio_token, audio_token_len, prompt_text, llm_prompt_audio_token, embeddings, this_uuid, duration_to_gen, task))
+            # HQ 
+            p = threading.Thread(target=self.llm_job, args=(text_token, audio_token, audio_token_len, video_emb, video_emb_len, prompt_text, llm_prompt_audio_token, embeddings, this_uuid, duration_to_gen, task))
             p.start()
 
         if stream is True:

@@ -28,6 +28,7 @@ llm: !new:inspiremusic.llm.llm.LLM
     llm: !new:inspiremusic.transformer.qwen_encoder.QwenEmbeddingEncoder
         input_size: !ref <text_encoder_input_size>
         pretrain_path: !ref <basemodel_path>
+        dtype: 'fp32'
         
     sampling: !name:inspiremusic.utils.common.topk_sampling
         top_k: 350

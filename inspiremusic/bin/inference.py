@@ -190,6 +190,14 @@ def main():
                     token = audio_token.view(audio_token.size(0), -1, 4)[:, :, 0]
                     token_len = audio_token_len / 4
 
+            # HQ a            
+            if "video_emb" in batch:
+                video_emb = batch["video_emb"].to(device)
+                video_emb_len = batch["video_emb_len"].to(device)
+            else:
+                video_emb = None
+                video_emb_len = None
+
             if args.task in ['text-to-music', 'continuation']:
                 # text to music, music continuation
                 model_input = {"text": text, "audio_token": token,
@@ -205,6 +213,19 @@ def main():
                 # audio reconstruction, audio super resolution
                 model_input = {"text": text, "audio_token": audio_token,
                                "audio_token_len": audio_token_len,
+                               "text_token": text_token,
+                               "text_token_len": text_token_len,
+                               "embeddings": [time_start, time_end, chorus],
+                               "raw_text": text,
+                               "sample_rate": args.output_sample_rate,
+                               "duration_to_gen": args.max_generate_audio_seconds,
+                               "task": args.task}
+
+            else args.task in ['bd-task1']:
+                # text to music, music continuation
+                model_input = {"text": text, 
+                               "video_emb": video_emb,
+                               "video_emb_len": video_emb_len,
                                "text_token": text_token,
                                "text_token_len": text_token_len,
                                "embeddings": [time_start, time_end, chorus],

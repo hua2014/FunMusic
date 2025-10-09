@@ -86,8 +86,9 @@ class LLM(torch.nn.Module):
         # 2. build audio token language model related modules
         self.sos_eos = 0
         self.task_id = 1
+        self.task_text_video_to_music = 2 # HQ a
 
-        self.llm_embedding = torch.nn.Embedding(2, llm_input_size)
+        self.llm_embedding = torch.nn.Embedding(3, llm_input_size) # HQ m2 to 3
         self.llm = llm
         self.llm_decoder = nn.Linear(llm_output_size, audio_token_size + 1)
         self.criterion_ce = LabelSmoothingLoss(
@@ -104,6 +105,9 @@ class LLM(torch.nn.Module):
         # 4. sampling method
         self.sampling = sampling
         self.time_embedding = SinusoidalEmbedding(llm_input_size)
+
+        # 5. HQ a video_emb adaptor
+        self.visual_feature_proj = torch.nn.Linear(768, llm_input_size)
 
     def cfg_dropout(self, text_token, text_token_len, p):
         # Classifier-Free Guidance Dropout
@@ -151,7 +155,9 @@ class LLM(torch.nn.Module):
         return encoder_out, encoder_out_lens
 
     def pad_unpad_sequence(self, sos_eos_emb, embeddings, text_token,
-                           text_token_len, task_id_emb, audio_token,
+                           text_token_len, task_id_emb, 
+                           video_token, video_token_len, task_text_video_to_music_id_emb, # HQ a
+                           audio_token,
                            audio_token_len, seg_len):
         text_token = unpad_sequence(text_token, text_token_len.cpu(),
                                     batch_first=True)
@@ -162,12 +168,16 @@ class LLM(torch.nn.Module):
         for i in range(len(embeddings)):
             embeddings[i] = unpad_sequence(embeddings[i], seg_len.cpu(), batch_first=True)
 
-        lm_input = [torch.concat([sos_eos_emb.squeeze(dim=0)] + [embedding[i] for embedding in embeddings] + [text_token[i], task_id_emb.squeeze(dim=0), audio_token[i]], dim=0) for i in range(len(text_token))]
+        # lm_input = [torch.concat([sos_eos_emb.squeeze(dim=0)] + [embedding[i] for embedding in embeddings] + [text_token[i], task_id_emb.squeeze(dim=0), audio_token[i]], dim=0) for i in range(len(text_token))]
+        # HQ m
+        lm_input = [torch.concat([sos_eos_emb.squeeze(dim=0)] + [embedding[i] for embedding in embeddings] + [text_token[i], sos_eos_emb.squeeze(dim=0), video_token[i], task_text_video_to_music_id_emb.squeeze(dim=0), audio_token[i]], dim=0) for i in range(len(text_token))]
+
         lm_input_len = torch.tensor([i.size(0) for i in lm_input], dtype=torch.int32)
         lm_input = pad_sequence(lm_input, batch_first=True, padding_value=IGNORE_ID)
         return lm_input, lm_input_len
 
     def pad_unpad_sequence_batch(self, sos_eos_emb, embeddings, text_token, text_token_len, task_id_emb, audio_token, audio_token_len, seg_len):
+        raise
         text_token = unpad_sequence(text_token, text_token_len.cpu(), batch_first=True)
         if audio_token_len is not None:
             audio_token = unpad_sequence(audio_token, audio_token_len.cpu(), batch_first=True)
@@ -201,6 +211,7 @@ class LLM(torch.nn.Module):
         mask = True
         text_token = batch['text_token'].to(device)
         text_token_len = batch['text_token_len'].to(device)
+        # print("text_token ", text_token.size(), " text_token_len ", text_token_len)
         if "semantic_token" not in batch:
             audio_token = batch['acoustic_token'].to(device)
             audio_token_len = batch['acoustic_token_len'].to(device)
@@ -211,7 +222,11 @@ class LLM(torch.nn.Module):
         else:
             audio_token = batch['semantic_token'].to(device)
             audio_token_len = batch['semantic_token_len'].to(device)
-
+        # print("audio_token ", audio_token.size(), " audio_token_len ", audio_token_len)
+        assert "video_emb" in batch  # HQ a initial video_emb
+        video_emb = batch["video_emb"].to(device)
+        video_emb_len = batch['video_emb_len'].to(device)
+        # print("video_emb ", video_emb.size(), " video_emb_len ", video_emb_len)
         time_start = batch['time_start'].to(device)
         time_end = batch['time_end'].to(device)
         chorus = batch['chorus'].to(device)
@@ -224,6 +239,8 @@ class LLM(torch.nn.Module):
         # 2. Time Embedding & chorus embedding
         text_token = self.text_embedding(text_token)
         text_token, text_token_len = self.encode(text_token, text_token_len)
+
+        # print("text_embedding text_token",text_token.size(), " text_token_len ", text_token_len)
         if mask:
             time_mask = time_start != -1.0
             seg_len = time_mask.sum(-1)
@@ -235,27 +252,39 @@ class LLM(torch.nn.Module):
             time_start_embed = time_start_embed.view(chorus.size(0), chorus.size(1), -1)
             time_end_embed = time_end_embed.view(chorus.size(0), chorus.size(1), -1)
             chorus_embed = self.chorus_embedding(chorus)
-            lm_target = [torch.tensor([IGNORE_ID] * (1 + 3 * seg_len[i] + text_token_len[i]) + audio_token[i,:audio_token_len[i]].tolist() + [self.audio_token_size]) for i in range(text_token.size(0))]
+            # lm_target = [torch.tensor([IGNORE_ID] * (1 + 3 * seg_len[i] + text_token_len[i]) + audio_token[i,:audio_token_len[i]].tolist() + [self.audio_token_size]) for i in range(text_token.size(0))]
+            # HQ  finally 这样使用：sos embeddings text_tokens sos video_tokens ours_task_id
+            lm_target = [torch.tensor([IGNORE_ID] * (1 + 3 * seg_len[i] + text_token_len[i] + 1 + video_emb_len[i]) + audio_token[i,:audio_token_len[i]].tolist() + [self.audio_token_size]) for i in range(text_token.size(0))]
+
         else:
             time_start_embed = self.time_embedding(time_start).to(text_token.dtype)
             time_end_embed = self.time_embedding(time_end).to(text_token.dtype)
             chorus_embed = self.chorus_embedding(chorus)
 
-            lm_target = [torch.tensor([IGNORE_ID] * (4 + text_token_len[i]) + audio_token[i,:audio_token_len[i]].tolist() + [self.audio_token_size]) for i in range(text_token.size(0))]
+            # lm_target = [torch.tensor([IGNORE_ID] * (4 + text_token_len[i]) + audio_token[i,:audio_token_len[i]].tolist() + [self.audio_token_size]) for i in range(text_token.size(0))]
+            # HQ
+            lm_target = [torch.tensor([IGNORE_ID] * (4 + text_token_len[i] + 1 + video_emb_len[i]) + audio_token[i,:audio_token_len[i]].tolist() + [self.audio_token_size]) for i in range(text_token.size(0))]
 
         lm_target = pad_sequence(lm_target, batch_first=True, padding_value=IGNORE_ID).to(device)
 
         # 3. eos and task_id
         sos_eos_emb = self.llm_embedding.weight[self.sos_eos].reshape(1, 1, -1)
         task_id_emb = self.llm_embedding.weight[self.task_id].reshape(1, 1, -1)
+        task_text_video_to_music_emb = self.llm_embedding.weight[self.task_text_video_to_music].reshape(1, 1, -1) # HQ a
 
         # 4. encode audio_token
         audio_token = self.speech_embedding(audio_token)
+        # print("speech_embedding audio_token",audio_token.size(), " audio_token_len ", audio_token_len)
+        # HQ adaptor video emb    batch 组织会自动 添加维度吗？
+        video_token = self.visual_feature_proj(video_emb) # 参考VidMuse 是 b x T x 768
+        # print("visual_feature_proj video_token",video_token.size(), " video_emb_len ", video_emb_len)
+        # 5. unpad and pad ——HQ 增加新参数传入
+        lm_input, lm_input_len = self.pad_unpad_sequence(sos_eos_emb, [time_start_embed, time_end_embed, chorus_embed], text_token, text_token_len, task_id_emb, video_token, video_emb_len, task_text_video_to_music_emb, audio_token, audio_token_len, seg_len)
 
-        # 5. unpad and pad
-        lm_input, lm_input_len = self.pad_unpad_sequence(sos_eos_emb, [time_start_embed, time_end_embed, chorus_embed], text_token, text_token_len, task_id_emb, audio_token, audio_token_len, seg_len)
+        # print("pad_unpad_sequence lm_input",lm_input.size(), " lm_input_len ", lm_input_len)
         # 6. run lm forward
         lm_output, lm_output_mask = self.llm(lm_input.to(self.dtype), lm_input_len.to(device))
+        # print("llm lm_output",lm_output.size())
         logits = self.llm_decoder(lm_output)
         loss = self.criterion_ce(logits, lm_target)
 
@@ -279,6 +308,8 @@ class LLM(torch.nn.Module):
             text_len: torch.Tensor,
             audio_token: torch.Tensor,
             audio_token_len: torch.Tensor,
+            video_emb: torch.Tensor,
+            video_emb_len: torch.Tensor,
             prompt_text: torch.Tensor,
             prompt_text_len: torch.Tensor,
             prompt_audio_token: torch.Tensor,
@@ -318,6 +349,7 @@ class LLM(torch.nn.Module):
         # 3. concat llm_input
         sos_eos_emb = self.llm_embedding.weight[self.sos_eos].reshape(1, 1, -1)
         task_id_emb = self.llm_embedding.weight[self.task_id].reshape(1, 1, -1)
+        task_text_video_to_music_emb = self.llm_embedding.weight[self.task_text_video_to_music].reshape(1, 1, -1) # HQ a
 
         if audio_token_len:
             audio_token = audio_token[:, :(limit_audio_prompt_len * token_rate)]
@@ -339,6 +371,15 @@ class LLM(torch.nn.Module):
             if infer_cfg:
                 audio_cfg = self.speech_embedding(audio_token.new_zeros(audio_token.shape))
                 lm_cf_input = torch.concat([sos_eos_emb, torch.rand_like(time_start_embed), torch.rand_like(time_end_embed), torch.rand_like(chorus_embed), text_cfg, task_id_emb, audio_cfg], dim=1)
+                lm_input = torch.cat([lm_input, lm_cf_input], 0)
+        
+        elif task == "bd-task1":
+            # HQ adaptor video emb   
+            video_token = self.visual_feature_proj(video_emb)
+
+            lm_input = torch.concat([sos_eos_emb, time_start_embed, time_end_embed, chorus_embed, text,sos_eos_emb, video_token, task_text_video_to_music_emb], dim=1)
+            if infer_cfg:
+                lm_cf_input = torch.concat([sos_eos_emb, torch.rand_like(time_start_embed), torch.rand_like(time_end_embed), torch.rand_like(chorus_embed), text_cfg, sos_eos_emb, video_token, task_text_video_to_music_emb], dim=1)
                 lm_input = torch.cat([lm_input, lm_cf_input], 0)
         else:
             lm_input = torch.concat([sos_eos_emb, time_start_embed, time_end_embed, chorus_embed, text, task_id_emb], dim=1)

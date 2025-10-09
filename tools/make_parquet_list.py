@@ -27,15 +27,16 @@ import random
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def job(utt_list, token_list, parquet_file, utt2text, utt2time, utt2chorus, semantic_token_list):
+def job(utt_list, token_list, parquet_file, utt2text, utt2time, utt2chorus, semantic_token_list, video_emb_list):
     start_time = time.time()
 
     text_list = [utt2text[utt] for utt in utt_list]
     time_start = [utt2time[utt][0] for utt in utt_list]
     time_end = [utt2time[utt][1] for utt in utt_list]
     chorus_list = [utt2chorus[utt] for utt in utt_list]
-    print(len(token_list))
-    print(len(semantic_token_list))
+    # print(len(token_list))
+    # print(len(semantic_token_list))
+    # print(len(video_emb_list))
     try:
         df = pd.DataFrame()
         df['utt'] = utt_list
@@ -43,7 +44,8 @@ def job(utt_list, token_list, parquet_file, utt2text, utt2time, utt2chorus, sema
         df['chorus'] = chorus_list
         df['time_start'] = time_start
         df['time_end'] = time_end
-        df["semantic_token"] = semantic_token_list
+        df["semantic_token"] = semantic_token_list # 1000, 1, x * 1.0 * 2250
+        df["video_emb"] = video_emb_list # 1000, 1, x , 768
         df["acoustic_token"] = token_list
         logging.info(f'Starting to save parquet file: {parquet_file}')
         df.to_parquet(parquet_file)
@@ -120,6 +122,9 @@ if __name__ == "__main__":
     parser.add_argument('--semantic_token_dir',
                         type=str,
                         default=None, required=False)
+    parser.add_argument('--video_emb_dir',
+                        type=str,
+                        default=None, required=False)
     parser.add_argument('--acoustic_token_dir',
                         type=str,
                         default=None, required=False)
@@ -150,6 +155,7 @@ if __name__ == "__main__":
             utt2text[uid] = text
     utt2semantic_token = None
     utt2acoustic_token = None
+    utt2video_emb = None
     if args.semantic_token_dir is not None:
         utt2semantic_token = {}
         for fn in os.listdir(args.semantic_token_dir):
@@ -157,11 +163,26 @@ if __name__ == "__main__":
                 print(f"Starting {fn}")
                 try:
                     utt2semantic_token.update(
-                        torch.load('{}/{}'.format(args.semantic_token_dir, fn)))
+                        torch.load('{}/{}'.format(args.semantic_token_dir, fn) , weights_only=False))
                 except:
                     print('{}/{} failed'.format(args.semantic_token_dir, fn))
                     pass
         print(len(utt2semantic_token))
+    
+    if args.video_emb_dir is not None:
+        utt2video_emb = {}
+        for fn in os.listdir(args.video_emb_dir):
+            if fn.endswith("json") and fn.startswith("utt2video_"):
+                print(f"Starting {fn}")
+                try:
+                    with open('{}/{}'.format(args.video_emb_dir, fn), 'r', encoding='utf-8') as f:
+                        utt2video_emb = json.load(f)
+                    # utt2video_emb.update(
+                        # torch.load('{}/{}'.format(args.video_emb_dir, fn) , weights_only=False))
+                except:
+                    print('{}/{} failed'.format(args.video_emb_dir, fn))
+                    pass
+        print(len(utt2video_emb))
 
     # # Using process pool to speedup
     pool = multiprocessing.Pool(processes=args.num_processes)
@@ -170,7 +191,7 @@ if __name__ == "__main__":
             if fn.endswith("pt") and fn.startswith("utt2acoustic_"):
                 print(f"Starting {fn}")
                 utt2token = torch.load(
-                    '{}/{}'.format(args.acoustic_token_dir, fn))
+                    '{}/{}'.format(args.acoustic_token_dir, fn) , weights_only=False)
 
                 utts = [utt for utt in utt2token.keys() if utt in utt2text.keys()]
                 if utt2semantic_token:
@@ -180,6 +201,16 @@ if __name__ == "__main__":
                 if len(utts) == 0:
                     print("0 lines remained.")
                     continue
+
+                if utt2video_emb:
+                    utts = [utt for utt in utts if
+                            utt in utt2video_emb.keys()]
+
+                if len(utts) == 0:
+                    print("0 lines remained for video_emb.")
+                    continue
+
+
                 if isinstance(utt2token[utts[0]], np.ndarray):
                     token_lists = [utt2token[utt][0].tolist() for utt in utts]
                 else:
@@ -195,6 +226,9 @@ if __name__ == "__main__":
                             utt2semantic_token[utt], list) else
                     utt2semantic_token[utt] for utt in
                     utts] if utt2semantic_token else None
+                
+                
+
                 for i, j in enumerate(
                         range(0, len(utts), args.num_utts_per_parquet)):
                     parquet_file = os.path.join(args.des_dir,
@@ -208,10 +242,23 @@ if __name__ == "__main__":
                                               j: j + args.num_utts_per_parquet]
                     else:
                         semantic_token_list = None
+                    
+                    #
+                    video_emb_lists = None
+                    if utt2video_emb:
+                        utt2video_emb_sub = {utt_item : torch.load(utt2video_emb[utt_item] , weights_only=False) for utt_item in utts[j: j + args.num_utts_per_parquet]}
+                        video_emb_lists = [
+                            utt2video_emb_sub[utt].tolist() for utt in utt2video_emb_sub.keys()]
+
+                    #
+                    # job(utts[j: j + args.num_utts_per_parquet], token_list,
+                    # parquet_file, utt2text, utt2time, utt2chorus,
+                    # semantic_token_list, video_emb_lists)
+
                     pool.apply_async(job, (
                     utts[j: j + args.num_utts_per_parquet], token_list,
                     parquet_file, utt2text, utt2time, utt2chorus,
-                    semantic_token_list))
+                    semantic_token_list, video_emb_lists))
                     cnt += i
 
     if args.semantic_token_dir is None and args.acoustic_token_dir is None:

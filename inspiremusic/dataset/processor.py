@@ -520,11 +520,40 @@ def padding(data, mode='train'):
 					semantic_token_len = torch.tensor(
 							[i.size(0) for i in semantic_token],
 							dtype=torch.int32)
+
+					# print("semantic_token ========>", type(semantic_token)) # list
 					semantic_token = pad_sequence(semantic_token,
 												  batch_first=True,
 												  padding_value=0)
+					# print("semantic_token1 ========>", type(semantic_token), semantic_token.size()) # tensor
 					batch.update({"semantic_token"    : semantic_token,
 								  "semantic_token_len": semantic_token_len})
+
+				if "video_emb" in sample[0]:
+					# sample[i]['video_emb'] ==> (1,) (3000,)
+					# print("sample[i]['video_emb'] ==>", 
+					# 	np.stack(sample[0]['video_emb'][0]).shape, # (3000,768)
+					# 	sample[0]['video_emb'].shape, #  (1,) 
+					# 	sample[0]['video_emb'][0].shape, # (3000,)
+					# 	type(sample[0]['video_emb'][0]),
+					# 	type(sample[0]['video_emb'][0][0]),
+					# 	type(sample[0]['video_emb'][0][0][0]))
+
+					video_emb = [
+						torch.tensor(np.stack(sample[i]['video_emb'][0]),
+									 dtype=torch.float32) for i in order]
+
+					# HQ Normal									 
+					video_emb = torch.tensor(np.stack(video_emb) , dtype=torch.float32)
+					# 显存溢出了 做切片 以测试
+					# video_emb = torch.tensor(np.stack(video_emb)[:,:300,:] , dtype=torch.float32)
+					# print("video_emb ====>", video_emb.size()) # video_emb ====> torch.Size([3, 3000, 768])
+					video_emb_len = torch.tensor(
+							[i.size(0) for i in video_emb],
+							dtype=torch.int32)
+
+					batch.update({"video_emb"    : video_emb,
+								  "video_emb_len": video_emb_len})
 
 				yield batch
 			else:
@@ -592,4 +621,21 @@ def padding(data, mode='train'):
 				batch.update({"semantic_token"    : semantic_token,
 							  "semantic_token_len": semantic_token_len})
 
+			if "video_emb" in sample[0]:
+				# HQ
+				video_emb = [torch.tensor(np.stack(sample[i]['video_emb'][0]),
+											   dtype=torch.float32) for i in
+								  range(len(sample))]
+
+				# HQ Normal									 
+				video_emb = torch.tensor(np.stack(video_emb) , dtype=torch.float32)
+				# 显存溢出了 做切片 以测试
+				# video_emb = torch.tensor(np.stack(video_emb)[:,:300,:] , dtype=torch.float32)
+				
+				video_emb_len = torch.tensor(
+						[i.size(0) for i in video_emb], dtype=torch.int32)
+
+				batch.update({"video_emb"    : video_emb,
+							  "video_emb_len": video_emb_len})
+			# HQ： batch 组织会自动 添加维度吗？
 			yield batch
