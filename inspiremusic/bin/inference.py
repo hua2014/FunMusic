@@ -221,7 +221,7 @@ def main():
                                "duration_to_gen": args.max_generate_audio_seconds,
                                "task": args.task}
 
-            else args.task in ['bd-task1']:
+            elif args.task in ['bd-task1']:
                 # text to music, music continuation
                 model_input = {"text": text, 
                                "video_emb": video_emb,
