@@ -176,7 +176,8 @@ if __name__ == "__main__":
                 print(f"Starting {fn}")
                 try:
                     with open('{}/{}'.format(args.video_emb_dir, fn), 'r', encoding='utf-8') as f:
-                        utt2video_emb = json.load(f)
+                        # utt2video_emb = json.load(f)
+                        utt2video_emb.update(json.load(f)) # 保持和semantic token载入统一的方式 取代之前直接赋值的方式
                     # utt2video_emb.update(
                         # torch.load('{}/{}'.format(args.video_emb_dir, fn) , weights_only=False))
                 except:
