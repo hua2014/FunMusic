@@ -22,7 +22,7 @@ import os, json
 from pathlib import Path
 
 import sys 
-sys.path.append("/root/autodl-tmp/VidMuse-main")
+sys.path.append("../../VidMuse-main")
 
 from demos.VidMuse_app import load_model, _do_predictions_for_get_video_emb
 
