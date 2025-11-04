@@ -165,6 +165,9 @@ class LLM(torch.nn.Module):
 
         audio_token = unpad_sequence(audio_token, audio_token_len.cpu(),
                                      batch_first=True)
+        # HQ 对应 dataset processor，增加对video_emb padding的支持 的 unpad 处理
+        video_token = unpad_sequence(video_token, video_token_len.cpu(), 
+                                     batch_first=True)
 
         for i in range(len(embeddings)):
             embeddings[i] = unpad_sequence(embeddings[i], seg_len.cpu(), batch_first=True)
@@ -223,11 +226,11 @@ class LLM(torch.nn.Module):
         else:
             audio_token = batch['semantic_token'].to(device)
             audio_token_len = batch['semantic_token_len'].to(device)
-        # print("audio_token ", audio_token.size(), " audio_token_len ", audio_token_len)
+
         assert "video_emb" in batch  # HQ a initial video_emb
         video_emb = batch["video_emb"].to(device)
         video_emb_len = batch['video_emb_len'].to(device)
-        # print("video_emb ", video_emb.size(), " video_emb_len ", video_emb_len)
+
         time_start = batch['time_start'].to(device)
         time_end = batch['time_end'].to(device)
         chorus = batch['chorus'].to(device)
@@ -276,9 +279,11 @@ class LLM(torch.nn.Module):
         # 4. encode audio_token
         audio_token = self.speech_embedding(audio_token)
         # print("speech_embedding audio_token",audio_token.size(), " audio_token_len ", audio_token_len)
+        # speech_embedding audio_token torch.Size([7, 801, 1536])  audio_token_len  tensor([801, 801, 801, 801, 801, 801, 801], device='cuda:3', dtype=torch.int32)
         # HQ adaptor video emb    batch 组织会自动 添加维度吗？
         video_token = self.visual_feature_proj(video_emb) # 参考VidMuse 是 b x T x 768
         # print("visual_feature_proj video_token",video_token.size(), " video_emb_len ", video_emb_len)
+        # visual_feature_proj video_token torch.Size([7, 1000, 1536])  video_emb_len  tensor([1000, 1000, 1000, 1000, 1000, 1000, 1000], device='cuda:3',dtype=torch.int32)
         # 5. unpad and pad ——HQ 增加新参数传入
         lm_input, lm_input_len = self.pad_unpad_sequence(sos_eos_emb, [time_start_embed, time_end_embed, chorus_embed], text_token, text_token_len, task_id_emb, video_token, video_emb_len, task_text_video_to_music_emb, audio_token, audio_token_len, seg_len)
 
@@ -352,7 +357,7 @@ class LLM(torch.nn.Module):
         task_id_emb = self.llm_embedding.weight[self.task_id].reshape(1, 1, -1)
         task_text_video_to_music_emb = self.llm_embedding.weight[self.task_text_video_to_music].reshape(1, 1, -1) # HQ a
 
-        if audio_token_len:
+        if audio_token_len: # HQ 这段 仅是给重建任务用的
             audio_token = audio_token[:, :(limit_audio_prompt_len * token_rate)]
             audio_token_emb = self.speech_embedding(audio_token)
         else:
