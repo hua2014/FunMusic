@@ -39,7 +39,7 @@ class QwenEncoder(nn.Module):
         else:
             self.dtype = torch.float32
 
-        self.model = AutoModelForCausalLM.from_pretrained(pretrain_path, device_map="auto", attn_implementation="flash_attention_2", torch_dtype=self.dtype)
+        self.model = AutoModelForCausalLM.from_pretrained(pretrain_path, device_map=None, torch_dtype=self.dtype)
         self._output_size = self.model.config.hidden_size
         self.do_fusion_emb = do_fusion_emb
         self.hidden_norm = torch.nn.LayerNorm(self._output_size)
@@ -109,7 +109,7 @@ class QwenEmbeddingEncoder(nn.Module):
         else:
             self.dtype = torch.float32
         from transformers import Qwen2ForCausalLM
-        self.model = Qwen2ForCausalLM.from_pretrained(pretrain_path, device_map="auto", attn_implementation="flash_attention_2", torch_dtype=self.dtype)
+        self.model = Qwen2ForCausalLM.from_pretrained(pretrain_path, device_map=None, torch_dtype=self.dtype)
         self._output_size = self.model.config.hidden_size
 
     def output_size(self) -> int:
@@ -163,7 +163,7 @@ class QwenInputOnlyEncoder(nn.Module):
         else:
             self.dtype = torch.float32
         from transformers import Qwen2ForCausalLM
-        model = Qwen2ForCausalLM.from_pretrained(pretrain_path, device_map="auto", attn_implementation="flash_attention_2", torch_dtype=self.dtype)
+        model = Qwen2ForCausalLM.from_pretrained(pretrain_path, device_map=None, torch_dtype=self.dtype)
         self.embed = model.model.embed_tokens
         for p in self.embed.parameters():
             p.requires_grad = False

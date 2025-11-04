@@ -109,6 +109,7 @@ class LLM(torch.nn.Module):
         # 5. HQ a video_emb adaptor
         self.visual_feature_proj = torch.nn.Linear(768, llm_input_size)
 
+    
     def cfg_dropout(self, text_token, text_token_len, p):
         # Classifier-Free Guidance Dropout
         B = text_token.size(0)

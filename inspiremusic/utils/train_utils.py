@@ -205,7 +205,6 @@ def inspiremusic_join(group_join, info_dict):
 
 def batch_forward(model, batch, info_dict, scaler):
     device = int(os.environ.get('LOCAL_RANK', 0))
-
     dtype = info_dict["dtype"]
     if dtype == "fp16":
         dtype = torch.float16
