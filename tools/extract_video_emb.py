@@ -22,7 +22,7 @@ import os, json
 from pathlib import Path
 
 import sys 
-sys.path.append("../../VidMuse-main")
+sys.path.append("/root/autodl-tmp/InspireVidMuisc/VidMuse-main")
 
 from demos.VidMuse_app import load_model, _do_predictions_for_get_video_emb
 
@@ -43,18 +43,6 @@ def main(args):
 
     
     for utt in tqdm(utt2mp4.keys()):
-        video_path = str(utt2mp4[utt])
-
-        video_embs = _do_predictions_for_get_video_emb(
-            [str(video_path)], duration=30
-        )
-        # print(utt, video_embs.shape)
-        # video_embs = video_embs.squeeze(0).numpy().astype(np.float32) 
-        if video_embs.is_cuda:
-            video_embs = video_embs.cpu()
-        video_embs = video_embs.numpy().astype(np.float32) 
-        # print("\t",utt, video_embs.shape)
-        
         dir_index = int(len(utt2video_emb.keys()) / 100000)
         save_to = '{}/utt2video_emb/{}/{}.pt'.format(args.dir, dir_index, utt)
 
@@ -63,6 +51,18 @@ def main(args):
         if Path(save_to).exists():
             pass   
         else:
+            video_path = str(utt2mp4[utt])
+
+            video_embs = _do_predictions_for_get_video_emb(
+                [str(video_path)], duration=30
+            )
+            # print(utt, video_embs.shape)
+            # video_embs = video_embs.squeeze(0).numpy().astype(np.float32) 
+            if video_embs.is_cuda:
+                video_embs = video_embs.cpu()
+            video_embs = video_embs.numpy().astype(np.float32) 
+            # print("\t",utt, video_embs.shape)
+            
             torch.save(video_embs, save_to)
         utt2video_emb[utt] = save_to
         
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     parser.add_argument('--dir',
                         type=str)
     parser.add_argument('--model_path',
-                        type=str, default="/root/autodl-tmp/VidMuse-main/model")
+                        type=str, default="/root/autodl-tmp/InspireVidMuisc/VidMuse-main/model")
     
     args = parser.parse_args()
 
