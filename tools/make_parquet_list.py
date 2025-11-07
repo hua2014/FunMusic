@@ -24,7 +24,7 @@ import time
 import torch
 import numpy as np
 import random
-
+from pathlib import Path
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def job(utt_list, token_list, parquet_file, utt2text, utt2time, utt2chorus, semantic_token_list, video_emb_list):
@@ -237,29 +237,31 @@ if __name__ == "__main__":
                                                     cnt + i))
                     print(f"process {parquet_file}")
                     parquet_list.append(parquet_file)
-                    token_list = token_lists[j: j + args.num_utts_per_parquet]
-                    if semantic_token_lists:
-                        semantic_token_list = semantic_token_lists[
-                                              j: j + args.num_utts_per_parquet]
-                    else:
-                        semantic_token_list = None
-                    
-                    #
-                    video_emb_lists = None
-                    if utt2video_emb:
-                        utt2video_emb_sub = {utt_item : torch.load(utt2video_emb[utt_item] , weights_only=False) for utt_item in utts[j: j + args.num_utts_per_parquet]}
-                        video_emb_lists = [
-                            utt2video_emb_sub[utt].tolist() for utt in utt2video_emb_sub.keys()]
 
-                    #
-                    # job(utts[j: j + args.num_utts_per_parquet], token_list,
-                    # parquet_file, utt2text, utt2time, utt2chorus,
-                    # semantic_token_list, video_emb_lists)
-
-                    pool.apply_async(job, (
-                    utts[j: j + args.num_utts_per_parquet], token_list,
-                    parquet_file, utt2text, utt2time, utt2chorus,
-                    semantic_token_list, video_emb_lists))
+                    if not Path(parquet_file).exists(): # HQ 
+                        token_list = token_lists[j: j + args.num_utts_per_parquet]
+                        if semantic_token_lists:
+                            semantic_token_list = semantic_token_lists[
+                                                  j: j + args.num_utts_per_parquet]
+                        else:
+                            semantic_token_list = None
+                        
+                        #
+                        video_emb_lists = None
+                        if utt2video_emb:
+                            utt2video_emb_sub = {utt_item : torch.load(utt2video_emb[utt_item] , weights_only=False) for utt_item in utts[j: j + args.num_utts_per_parquet]}
+                            video_emb_lists = [
+                                utt2video_emb_sub[utt].tolist() for utt in utt2video_emb_sub.keys()]
+    
+                        #
+                        # job(utts[j: j + args.num_utts_per_parquet], token_list,
+                        # parquet_file, utt2text, utt2time, utt2chorus,
+                        # semantic_token_list, video_emb_lists)
+    
+                        pool.apply_async(job, (
+                        utts[j: j + args.num_utts_per_parquet], token_list,
+                        parquet_file, utt2text, utt2time, utt2chorus,
+                        semantic_token_list, video_emb_lists))
                     cnt += i
 
     if args.semantic_token_dir is None and args.acoustic_token_dir is None:

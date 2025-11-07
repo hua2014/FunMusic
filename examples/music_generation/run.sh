@@ -78,7 +78,7 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   for x in ${dataset_name}_dev ${dataset_name}_train; do
     echo $x
     [ -d data/$x/parquet ] || mkdir -p data/$x/parquet
-    python tools/make_parquet_list.py --num_utts_per_parquet 100 \
+    python tools/make_parquet_list.py --num_utts_per_parquet 50 \
       --num_processes 10 \
       --semantic_token_dir `pwd`/data/$x/ \
       --acoustic_token_dir `pwd`/data/$x/ \
