@@ -70,13 +70,13 @@ def init_dataset_and_dataloader(args, configs):
                                    pin_memory=args.pin_memory,
                                    num_workers=args.num_workers,
                                    prefetch_factor=args.prefetch,
-                                   timeout=60)
+                                   timeout=180)
     cv_data_loader = DataLoader(cv_dataset,
                                 batch_size=None,
-                                pin_memory=args.pin_memory,
+                                pin_memory=False,
                                 num_workers=args.num_workers,
                                 prefetch_factor=args.prefetch,
-                                timeout=60)
+                                timeout=180)
     return train_dataset, cv_dataset, train_data_loader, cv_data_loader
 
 

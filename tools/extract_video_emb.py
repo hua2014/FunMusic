@@ -45,32 +45,39 @@ def main(args):
     for utt in tqdm(utt2mp4.keys()):
         dir_index = int(len(utt2video_emb.keys()) / 100000)
         save_to = '{}/utt2video_emb/{}/{}.pt'.format(args.dir, dir_index, utt)
-
-        if not Path(save_to).parent.exists():
-            Path(save_to).parent.mkdir(parents=True)
-        if Path(save_to).exists():
-            pass   
-        else:
-            video_path = str(utt2mp4[utt])
-
-            video_embs = _do_predictions_for_get_video_emb(
-                [str(video_path)], duration=30
-            )
-            # print(utt, video_embs.shape)
-            # video_embs = video_embs.squeeze(0).numpy().astype(np.float32) 
-            if video_embs.is_cuda:
-                video_embs = video_embs.cpu()
-            video_embs = video_embs.numpy().astype(np.float32) 
-            # print("\t",utt, video_embs.shape)
-            
-            torch.save(video_embs, save_to)
-        utt2video_emb[utt] = save_to
+        
+        try:
+            if not Path(save_to).parent.exists():
+                Path(save_to).parent.mkdir(parents=True)
+            if Path(save_to).exists():
+                pass   
+            else:
+                video_path = str(utt2mp4[utt])
+    
+                video_embs = _do_predictions_for_get_video_emb(
+                    [str(video_path)], duration=30
+                )
+                # print(utt, video_embs.shape)
+                # video_embs = video_embs.squeeze(0).numpy().astype(np.float32) 
+                if video_embs.is_cuda:
+                    video_embs = video_embs.cpu()
+                video_embs = video_embs.numpy().astype(np.float32) 
+                # print("\t",utt, video_embs.shape)
+                
+                torch.save(video_embs, save_to)
+            utt2video_emb[utt] = save_to
+        except Exception as e:
+            if Path(save_to).exists():
+                Path(save_to).unlink()
+            if utt in utt2video_emb:
+                del utt2video_emb[utt]
+            continue
         
     # torch.save(utt2video_emb, '{}/utt2video_emb.pt'.format(args.dir))
     with open('{}/utt2video_emb.json'.format(args.dir), 'w') as json_file:
         json.dump(utt2video_emb, json_file)
 
-    logging.info('spend time {}'.format(time.time() - start_time))
+    logging.info('spend time {}    utt2video_emb len {}'.format(time.time() - start_time, len(utt2video_emb)))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

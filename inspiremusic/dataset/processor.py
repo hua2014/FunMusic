@@ -418,8 +418,8 @@ def dynamic_batch(data, max_frames_in_batch=12000, mode='train'):
 		else:
 			new_sample_frames = sample['semantic_token']
 		# HQ
-		if "video_emb" in sample:
-			new_sample_frames = int(new_sample_frames * (1 + 4.0/3)) # 等时长数据样本的video_emb的len是semantic_token len的4/3倍
+		# if "video_emb" in sample:
+		# 	new_sample_frames = int(new_sample_frames * (1 + 4.0/3)) # 等时长数据样本的video_emb的len是semantic_token len的4/3倍
 
 		if "text_token" in sample:
 			new_sample_frames += len(sample['text_token'])

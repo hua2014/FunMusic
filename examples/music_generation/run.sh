@@ -28,7 +28,7 @@ stop_stage=5
 
 model_name=InspireMusic-1.5B-Long
 pretrained_model_dir=../../pretrained_models/${model_name}
-dataset_name=dataset_MAP3000
+dataset_name=PUB_DS_UNION_25_30
 
 # data preparation
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
@@ -111,14 +111,14 @@ fi
 
 # train llm and flow models fp16
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-  export CUDA_VISIBLE_DEVICES="0"
+  export CUDA_VISIBLE_DEVICES="0,1,2,3"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   job_id=1024
   dist_backend="nccl"
-  num_workers=8
-  prefetch=100
+  num_workers=2
+  prefetch=2
   train_engine=torch_ddp
-  expr_name="InspireMusic-1.5b-long-datasetMAP3000-ft250926-1"
+  expr_name="InspireMusic-1.5b-long-PUB_DS_UNION_25_30-ft251110-1"
 
   echo "Run model training. We support llm and flow traning."
 
