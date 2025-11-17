@@ -208,9 +208,11 @@ class InspireMusicModel:
         return wav
 
     @torch.inference_mode()
-    def inference(self, text, audio_token, audio_token_len,
+    def inference(self, text,
                   video_emb, video_emb_len, # HQ
-                  text_token, text_token_len, embeddings=None,
+                  text_token, text_token_len, 
+                  audio_token=None, audio_token_len=None,
+                  embeddings=None,
                   prompt_text=torch.zeros(1, 0, dtype=torch.int32),
                   llm_prompt_audio_token=torch.zeros(1, 0, dtype=torch.int32),
                   flow_prompt_audio_token=torch.zeros(1, 0, dtype=torch.int32),

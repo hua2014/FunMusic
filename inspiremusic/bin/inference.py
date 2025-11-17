@@ -64,7 +64,7 @@ def get_args():
                         help='gpu id for this rank, -1 for cpu')
     parser.add_argument('--task',
                         default='text-to-music',
-                        choices=['text-to-music', 'continuation', "reconstruct", "super_resolution"],
+                        choices=['text-to-music', 'continuation', "reconstruct", "super_resolution", "bd-task1"],
                         help='choose inference task type. text-to-music: text-to-music task. continuation: music continuation task. reconstruct: reconstruction of original music. super_resolution: convert original 24kHz music into 48kHz music.')
     parser.add_argument('--result_dir', required=True, help='asr result file')
     args = parser.parse_args()
@@ -231,7 +231,7 @@ def main():
                                "embeddings": [time_start, time_end, chorus],
                                "raw_text": text,
                                "sample_rate": args.output_sample_rate,
-                               "duration_to_gen": args.max_generate_audio_seconds,
+                               "duration_to_gen": math.floor(video_emb_len/100.0), # HQ args.max_generate_audio_seconds,
                                "task": args.task}
             else:
                 # zero-shot
