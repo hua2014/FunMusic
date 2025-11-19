@@ -81,6 +81,10 @@ def get_args():
                           action='store_true',
                           default=False,      
                           help='Enable fp16 mixed precision training')
+    parser.add_argument('--freezen',
+                          action='store_true',
+                          default=False,      
+                          help='Enable freezen LLM except video proj for training')
     parser.add_argument('--lora',
                           action='store_true',
                           default=False,      
@@ -158,7 +162,22 @@ def main():
             logging.info(f"Loaded latest checkpoint from {latest_checkpoint}")
 
             model.load_state_dict(torch.load(latest_checkpoint, map_location='cpu'))
-
+    # 冻结 只训练 visual_feature_proj
+    if args.freezen:
+        for name, param in model.named_parameters():
+            if "visual_feature_proj" in name or "llm_embedding" in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
+        if dist.get_rank() == 0:
+            for name, param in model.named_parameters():
+                if param.requires_grad == True:
+                    print("\t训练参数=>", name)
+                else:
+                    print("\t\t冻结参数=>", name)
+                # 
+            print("*" * 30)
+    #
     if args.lora:
         logging.info("Applying LoRA to the model...")
         if not args.lora_target_modules:

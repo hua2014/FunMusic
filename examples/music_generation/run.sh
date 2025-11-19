@@ -147,6 +147,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
       --deepspeed_config ./conf/ds_stage2.json \
       --deepspeed.save_states model+optimizer \
       --fp16 \
+      --freezen \
       --checkpoint ../../pretrained_models/InspireMusic-1.5B-Long/llm.pt
 
   # train flow matching model, only support fp32 training
