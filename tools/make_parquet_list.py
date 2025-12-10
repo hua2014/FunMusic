@@ -22,11 +22,21 @@ import pandas as pd
 import multiprocessing
 import time
 import torch
+import torch.nn as nn
 import numpy as np
 import random
 from pathlib import Path
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def video_emb_avg_pooling(pd_path, pool_w=4):
+    video_embs = torch.load(pd_path, weights_only=False)
+    if isinstance(video_embs, np.ndarray):
+        video_embs = torch.from_numpy(video_embs)
+    avg_pooling = nn.AvgPool2d((pool_w, 1), stride=(pool_w, 1))
+    video_embs = avg_pooling(video_embs)
+    video_embs = video_embs.numpy()
+    return video_embs
+    
 def job(utt_list, token_list, parquet_file, utt2text, utt2time, utt2chorus, semantic_token_list, video_emb_list):
     start_time = time.time()
 
@@ -125,6 +135,10 @@ if __name__ == "__main__":
     parser.add_argument('--video_emb_dir',
                         type=str,
                         default=None, required=False)
+    parser.add_argument('--video_emb_avg_poolling',
+                          action='store_true',
+                          default=False,      
+                          help='video_emb 1/4 avg_poolling')
     parser.add_argument('--acoustic_token_dir',
                         type=str,
                         default=None, required=False)
@@ -249,7 +263,12 @@ if __name__ == "__main__":
                         #
                         video_emb_lists = None
                         if utt2video_emb:
-                            utt2video_emb_sub = {utt_item : torch.load(utt2video_emb[utt_item] , weights_only=False) for utt_item in utts[j: j + args.num_utts_per_parquet]}
+                            if args.video_emb_avg_poolling:
+                                # 修改以使用池化后的数据
+                                utt2video_emb_sub = {utt_item : video_emb_avg_pooling(utt2video_emb[utt_item]) for utt_item in utts[j: j + args.num_utts_per_parquet]}
+                            else:
+                                utt2video_emb_sub = {utt_item : torch.load(utt2video_emb[utt_item] , weights_only=False) for utt_item in utts[j: j + args.num_utts_per_parquet]}
+
                             video_emb_lists = [
                                 utt2video_emb_sub[utt].tolist() for utt in utt2video_emb_sub.keys()]
     

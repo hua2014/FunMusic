@@ -22,6 +22,7 @@ from torch import Tensor
 from math import log
 from einops import rearrange, reduce, repeat
 import logging
+from .video_projector import ResMLPProjector
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -107,7 +108,14 @@ class LLM(torch.nn.Module):
         self.time_embedding = SinusoidalEmbedding(llm_input_size)
 
         # 5. HQ a video_emb adaptor
-        self.visual_feature_proj = torch.nn.Linear(768, llm_input_size)
+        # self.visual_feature_proj = torch.nn.Linear(768, llm_input_size)
+        self.visual_feature_proj = ResMLPProjector(
+            input_dim=768,
+            output_dim=llm_input_size,
+            use_input_ln=True,
+            zero_init_last_linear=True,
+            apply_output_ln=True # 重点验证此项
+        )
 
     
     def cfg_dropout(self, text_token, text_token_len, p):

@@ -231,7 +231,8 @@ def main():
                                "embeddings": [time_start, time_end, chorus],
                                "raw_text": text,
                                "sample_rate": args.output_sample_rate,
-                               "duration_to_gen": math.floor(video_emb_len/100.0), # HQ args.max_generate_audio_seconds,
+                               # "duration_to_gen": math.floor(video_emb_len/100.0), # HQ args.max_generate_audio_seconds,
+                               "duration_to_gen": video_emb_len/(100.0 / 4), # HQ args.max_generate_audio_seconds,适配对视频特征的1/4池化
                                "task": args.task}
             else:
                 # zero-shot
