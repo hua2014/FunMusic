@@ -135,10 +135,10 @@ if __name__ == "__main__":
     parser.add_argument('--video_emb_dir',
                         type=str,
                         default=None, required=False)
-    parser.add_argument('--video_emb_avg_poolling',
-                          action='store_true',
-                          default=False,      
-                          help='video_emb 1/4 avg_poolling')
+    # parser.add_argument('--video_emb_avg_poolling',
+    #                       action='store_true',
+    #                       default=False,      
+    #                       help='video_emb 1/4 avg_poolling')
     parser.add_argument('--acoustic_token_dir',
                         type=str,
                         default=None, required=False)
@@ -263,11 +263,11 @@ if __name__ == "__main__":
                         #
                         video_emb_lists = None
                         if utt2video_emb:
-                            if args.video_emb_avg_poolling:
-                                # 修改以使用池化后的数据
-                                utt2video_emb_sub = {utt_item : video_emb_avg_pooling(utt2video_emb[utt_item]) for utt_item in utts[j: j + args.num_utts_per_parquet]}
-                            else:
-                                utt2video_emb_sub = {utt_item : torch.load(utt2video_emb[utt_item] , weights_only=False) for utt_item in utts[j: j + args.num_utts_per_parquet]}
+                            # if args.video_emb_avg_poolling:
+                            #     # 修改以使用池化后的数据
+                            #     utt2video_emb_sub = {utt_item : video_emb_avg_pooling(utt2video_emb[utt_item]) for utt_item in utts[j: j + args.num_utts_per_parquet]}
+                            # else:
+                            utt2video_emb_sub = {utt_item : torch.load(utt2video_emb[utt_item] , weights_only=False) for utt_item in utts[j: j + args.num_utts_per_parquet]}
 
                             video_emb_lists = [
                                 utt2video_emb_sub[utt].tolist() for utt in utt2video_emb_sub.keys()]

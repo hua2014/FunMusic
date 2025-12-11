@@ -22,7 +22,7 @@ from torch import Tensor
 from math import log
 from einops import rearrange, reduce, repeat
 import logging
-from .video_projector import ResMLPProjector
+from .video_condition_encoder import VideoConditionEncoder
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -109,12 +109,10 @@ class LLM(torch.nn.Module):
 
         # 5. HQ a video_emb adaptor
         # self.visual_feature_proj = torch.nn.Linear(768, llm_input_size)
-        self.visual_feature_proj = ResMLPProjector(
-            input_dim=768,
-            output_dim=llm_input_size,
-            use_input_ln=True,
-            zero_init_last_linear=True,
-            apply_output_ln=True # 重点验证此项
+        self.visual_feature_proj = VideoConditionEncoder(
+            patch_dim = 768,
+            d_model=llm_input_size,
+            fps=2,
         )
 
     
@@ -239,6 +237,16 @@ class LLM(torch.nn.Module):
         video_emb = batch["video_emb"].to(device)
         video_emb_len = batch['video_emb_len'].to(device)
 
+        # print("原始video_emb =>", video_emb.shape)
+        # print("原始video_emb_len =>", video_emb_len)
+        video_emb = video_emb.reshape(video_emb.shape[0], -1, 50, video_emb.shape[-1] )
+        assert (video_emb_len%50).sum() == 0
+        video_frame_len = (video_emb_len/50).to(torch.int32)
+        video_emb_len = (video_emb_len/50 * (self.visual_feature_proj.num_queries_per_frame + 1)).to(torch.int32)
+        # print("reshape后 video_emb =>", video_emb.shape)
+        # print("reshape后 video_emb_len =>", video_emb_len)
+
+
         time_start = batch['time_start'].to(device)
         time_end = batch['time_end'].to(device)
         chorus = batch['chorus'].to(device)
@@ -289,7 +297,17 @@ class LLM(torch.nn.Module):
         # print("speech_embedding audio_token",audio_token.size(), " audio_token_len ", audio_token_len)
         # speech_embedding audio_token torch.Size([7, 801, 1536])  audio_token_len  tensor([801, 801, 801, 801, 801, 801, 801], device='cuda:3', dtype=torch.int32)
         # HQ adaptor video emb    batch 组织会自动 添加维度吗？
-        video_token = self.visual_feature_proj(video_emb) # 参考VidMuse 是 b x T x 768
+
+        
+        video_token = self.visual_feature_proj(video_emb, video_frame_len) # 参考VidMuse 是 b x T x 768
+        # print("video_token =>", video_token.shape) 
+
+        # 原始video_emb => torch.Size([4, 2500, 768])
+        # 原始video_emb_len => tensor([2500, 2500, 2500, 2500], device='cuda:0', dtype=torch.int32)
+        # reshape后 video_emb => torch.Size([4, 50, 50, 768])
+        # reshape后 video_emb_len => tensor([250, 250, 250, 250], device='cuda:0', dtype=torch.int32)
+        # video_token => torch.Size([4, 250, 1536])
+
         # print("visual_feature_proj video_token",video_token.size(), " video_emb_len ", video_emb_len)
         # visual_feature_proj video_token torch.Size([7, 1000, 1536])  video_emb_len  tensor([1000, 1000, 1000, 1000, 1000, 1000, 1000], device='cuda:3',dtype=torch.int32)
         # 5. unpad and pad ——HQ 增加新参数传入
@@ -389,7 +407,15 @@ class LLM(torch.nn.Module):
         
         elif task == "bd-task1":
             # HQ adaptor video emb   
-            video_token = self.visual_feature_proj(video_emb)
+            # HQ adaptor video emb   
+            # 使用VideoConditionEncoder实例化video_proj
+            video_emb = video_emb.reshape(video_emb.shape[0], -1, 50, video_emb.shape[-1] )
+            assert (video_emb_len%50).sum() == 0
+            video_frame_len = (video_emb_len/50).to(torch.int32)
+            video_token = self.visual_feature_proj(video_emb, video_frame_len)
+
+            # 仅线性层变换的video_proj
+            # video_token = self.visual_feature_proj(video_emb)
 
             lm_input = torch.concat([sos_eos_emb, time_start_embed, time_end_embed, chorus_embed, text,sos_eos_emb, video_token, task_text_video_to_music_emb], dim=1)
             if infer_cfg:

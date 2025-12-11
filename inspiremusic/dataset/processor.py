@@ -537,10 +537,11 @@ def padding(data, mode='train'):
 					video_emb_len = torch.tensor(
 							[i.size(0) for i in video_emb],
 							dtype=torch.int32)
+					# print("video_emb ========>", type(video_emb)) # list
 					video_emb = pad_sequence(video_emb,  
                             batch_first=True,  
                             padding_value=0.0)  
-					
+					# print("video_emb1 ========>", type(video_emb), video_emb.size()) # tensor
 					batch.update({"video_emb"    : video_emb,
 								  "video_emb_len": video_emb_len})
 				yield batch
