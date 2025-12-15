@@ -68,7 +68,7 @@ def video_emb_pooling_test1(pd_path):
     video_embs = video_embs.numpy()
     return video_embs     
     
-def job(utt_list, token_list, parquet_file, utt2text, utt2time, utt2chorus, semantic_token_list, video_emb_file_list):
+def job(utt_list, token_list, parquet_file, utt2text, utt2time, utt2chorus, semantic_token_list, video_emb_list):
     start_time = time.time()
 
     text_list = [utt2text[utt] for utt in utt_list]
@@ -86,7 +86,7 @@ def job(utt_list, token_list, parquet_file, utt2text, utt2time, utt2chorus, sema
         df['time_start'] = time_start
         df['time_end'] = time_end
         df["semantic_token"] = semantic_token_list # 1000, 1, x * 1.0 * 2250
-        df["video_emb"] = video_emb_file_list # 1000, string
+        df["video_emb"] = video_emb_list # 1000, 1, x , 768
         df["acoustic_token"] = token_list
         logging.info(f'Starting to save parquet file: {parquet_file}')
         df.to_parquet(parquet_file)
@@ -292,18 +292,16 @@ if __name__ == "__main__":
                             semantic_token_list = None
                         
                         #
-                        video_emb_file_list = None
+                        video_emb_lists = None
                         if utt2video_emb:
-                            # if args.video_emb_poolling:
-                            #     # 修改以使用池化后的数据
-                            #     utt2video_emb_sub = {utt_item : video_emb_pooling_test1(utt2video_emb[utt_item]) for utt_item in utts[j: j + args.num_utts_per_parquet]}
-                            # else:
-                            #     utt2video_emb_sub = {utt_item : torch.load(utt2video_emb[utt_item] , weights_only=False) for utt_item in utts[j: j + args.num_utts_per_parquet]}
-                            
-                            utt2video_emb_sub = {utt_item : utt2video_emb[utt_item] for utt_item in utts[j: j + args.num_utts_per_parquet]}
+                            if args.video_emb_poolling:
+                                # 修改以使用池化后的数据
+                                utt2video_emb_sub = {utt_item : video_emb_pooling_test1(utt2video_emb[utt_item]) for utt_item in utts[j: j + args.num_utts_per_parquet]}
+                            else:
+                                utt2video_emb_sub = {utt_item : torch.load(utt2video_emb[utt_item] , weights_only=False) for utt_item in utts[j: j + args.num_utts_per_parquet]}
 
-                            video_emb_file_list = [
-                                utt2video_emb_sub[utt] for utt in utt2video_emb_sub.keys()]
+                            video_emb_lists = [
+                                utt2video_emb_sub[utt].tolist() for utt in utt2video_emb_sub.keys()]
     
                         #
                         # job(utts[j: j + args.num_utts_per_parquet], token_list,
@@ -313,7 +311,7 @@ if __name__ == "__main__":
                         pool.apply_async(job, (
                         utts[j: j + args.num_utts_per_parquet], token_list,
                         parquet_file, utt2text, utt2time, utt2chorus,
-                        semantic_token_list, video_emb_file_list))
+                        semantic_token_list, video_emb_lists))
                     cnt += i
 
     if args.semantic_token_dir is None and args.acoustic_token_dir is None:

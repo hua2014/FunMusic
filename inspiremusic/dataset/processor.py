@@ -531,9 +531,16 @@ def padding(data, mode='train'):
 
 				if "video_emb" in sample[0]:
 					# HQ
+					## 从parquet读取					
+					# video_emb = [
+					# 	torch.tensor(np.stack(sample[i]['video_emb'][0]),
+					# 				 dtype=torch.float32) for i in order]
+
+					## 从文件读取
 					video_emb = [
-						torch.tensor(np.stack(sample[i]['video_emb'][0]),
+						torch.tensor(np.stack(torch.load(sample[i]['video_emb'] , weights_only=False).tolist()[0]),
 									 dtype=torch.float32) for i in order]
+					
 					video_emb_len = torch.tensor(
 							[i.size(0) for i in video_emb],
 							dtype=torch.int32)
@@ -612,9 +619,16 @@ def padding(data, mode='train'):
 
 			if "video_emb" in sample[0]:
 				# HQ
-				video_emb = [torch.tensor(np.stack(sample[i]['video_emb'][0]),
-											   dtype=torch.float32) for i in
-								  range(len(sample))]
+
+				## 从parquet读取
+				# video_emb = [torch.tensor(np.stack(sample[i]['video_emb'][0]),
+				# 							   dtype=torch.float32) for i in
+				# 				  range(len(sample))]
+
+				## 从文件读取
+				video_emb = [torch.tensor(np.stack(torch.load(sample[i]['video_emb'] , weights_only=False).tolist()[0]), 
+							  dtype=torch.float32) for i in range(len(sample))]
+				
 				video_emb_len = torch.tensor(
 						[i.size(0) for i in video_emb], dtype=torch.int32)
 				video_emb = pad_sequence(video_emb,  

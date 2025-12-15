@@ -300,3 +300,58 @@ class VideoConditionEncoder(nn.Module):
         )  # [B, T*M, d_model]
 
         return video_cond_emb
+
+
+class VideoConditionEncoderTest1(nn.Module):
+    """
+    """
+
+    def __init__(
+        self,
+        patch_dim: int = 768,
+        d_model: int = 1536,
+        max_frames: int = 256,
+        proj_dropout: float = 0.1,
+        fps: float = 2.0,
+        xscale: float = 1.0,
+    ):
+        super().__init__()
+        self.patch_dim = patch_dim
+        self.d_model = d_model
+        self.xscale = xscale
+
+        self.projector = ResMLPProjector(
+            in_dim=patch_dim,
+            out_dim=d_model,
+            hidden_dim=d_model * 4,
+            dropout=proj_dropout,
+            use_input_ln=True,
+            use_output_ln=True,
+        )
+
+        self.vte = VideoTimeEmbedding(
+            max_frames=max_frames,
+            dim=d_model,
+            fps=fps,
+        )
+
+    def forward(
+        self,
+        video_feats: torch.Tensor,   # [B, Tx8, 768]
+    ) -> torch.Tensor:
+        B, _, _ = video_feats.shape
+        M = 1 + 7
+        projected_flat = self.projector(video_feats)       # [B, T*M, d_model]
+        projected = projected_flat.view(B, -1, M, self.d_model)   # [B, T, M, d_model]
+        _, T, _, _ = projected.shape
+        device = video_feats.device
+        frame_indices = torch.arange(T, device=device).unsqueeze(0).expand(B, -1)  # [B, T]
+        # 6. 加 VTE + xscale，并展平
+        video_cond_emb = apply_vte_and_flatten(
+            projected=projected,
+            frame_indices=frame_indices,
+            vte_module=self.vte,
+            xscale=self.xscale,
+        )  # [B, T*M, d_model]
+
+        return video_cond_emb
