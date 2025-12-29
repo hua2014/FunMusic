@@ -430,13 +430,15 @@ class LLM(torch.nn.Module):
             video_frame_len = (video_emb_len/50).to(torch.int32)
             video_token = self.visual_feature_proj(video_emb, video_frame_len)
 
+            if infer_cfg:
+                video_cfg = self.visual_feature_proj(video_emb.new_zeros(video_emb.shape), video_frame_len) 
             ## test1
             # assert (video_emb_len%8).sum() == 0
             # video_token = self.visual_feature_proj(video_emb)
 
             lm_input = torch.concat([sos_eos_emb, time_start_embed, time_end_embed, chorus_embed, text,sos_eos_emb, video_token, task_text_video_to_music_emb], dim=1)
             if infer_cfg:
-                lm_cf_input = torch.concat([sos_eos_emb, torch.rand_like(time_start_embed), torch.rand_like(time_end_embed), torch.rand_like(chorus_embed), text_cfg, sos_eos_emb, video_token, task_text_video_to_music_emb], dim=1)
+                lm_cf_input = torch.concat([sos_eos_emb, torch.rand_like(time_start_embed), torch.rand_like(time_end_embed), torch.rand_like(chorus_embed), text_cfg,  sos_eos_emb, video_cfg , task_text_video_to_music_emb], dim=1)
                 lm_input = torch.cat([lm_input, lm_cf_input], 0)
         else:
             lm_input = torch.concat([sos_eos_emb, time_start_embed, time_end_embed, chorus_embed, text, task_id_emb], dim=1)
