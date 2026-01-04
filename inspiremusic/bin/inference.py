@@ -18,7 +18,7 @@ import argparse
 import logging
 
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
-import os
+import os,math
 import torch
 from torch.utils.data import DataLoader
 import torchaudio
@@ -231,8 +231,16 @@ def main():
                                "embeddings": [time_start, time_end, chorus],
                                "raw_text": text,
                                "sample_rate": args.output_sample_rate,
-                               "duration_to_gen": math.floor(video_emb_len/100.0), # HQ args.max_generate_audio_seconds,
+                               "duration_to_gen": math.floor(video_emb_len.item()/100.0), # HQ args.max_generate_audio_seconds,
                                "task": args.task}
+                # if math.floor(video_emb_len/100.0) < 30:
+                #     continue
+                # seed = 16259840
+                # torch.manual_seed(seed)
+                # np.random.seed(seed)
+                # random.seed(seed)
+                # if torch.cuda.is_available():
+                #     torch.cuda.manual_seed(seed)
             else:
                 # zero-shot
                 model_input = {'text'                       : text,
@@ -315,4 +323,6 @@ def main():
     logging.info('Result wav.scp saved in {}'.format(fn))
 
 if __name__ == '__main__':
+    begin = time.time()
     main()
+    print("Over => ", time.time() - begin)

@@ -141,17 +141,54 @@ def main():
     if args.checkpoint is not None:
         # HQ
         # 方式1
-        pretrained_dict = torch.load(args.checkpoint, map_location='cpu')
+        pretrained_dict = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
+        if "module" in pretrained_dict.keys():
+            if dist.get_rank() == 0:
+                print("===> 'module key in pretrained_dict.keys'")
+            pretrained_dict = pretrained_dict["module"] # deepspeed
+        else:
+            pass # torch_ddp
         model_dict = model.state_dict()
-        
+
         if "llm.pt" in args.checkpoint:
-            # 模型结构共两个地方不兼容 原InspireMusic
+            if dist.get_rank() == 0:
+                print("模型结构共两个地方不兼容 原InspireMusic llm_embedding和新加的visual_feature_proj，故从llm.pt载入参数时，排除这两层")
             # - key in model_dict 会排除 visual_feature_proj
             # - 'llm_embedding' not in key 会排除 llm_embedding
             pretrained_dict = {key: value for key, value in pretrained_dict.items() if (key in model_dict and 'llm_embedding' not in key)}
             model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
 
+        ##
+        def count_parameters(model):
+            total_params = sum(p.numel() for p in model.parameters())
+            trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+            if dist.get_rank() == 0:
+                print(f"总参数: {total_params:,}")
+                print(f"可训练参数: {trainable_params:,}")
+                print(f"fp16模型大小: {total_params * 2 / 1024**3:.2f} GB")
+                print(f"fp32模型大小: {total_params * 4 / 1024**3:.2f} GB")
+            
+            # 按模块分解
+            for name, module in model.named_children():
+                params = sum(p.numel() for p in module.parameters())
+                if dist.get_rank() == 0:
+                    print(f"  {name}: {params:,} 参数")
+        
+        count_parameters(model)
+        def print_memory_usage(description):
+            torch.cuda.synchronize()
+            allocated = torch.cuda.memory_allocated() / 1024**3
+            reserved = torch.cuda.memory_reserved() / 1024**3
+            max_allocated = torch.cuda.max_memory_allocated() / 1024**3
+            if dist.get_rank() == 0:
+                print(f"{description}:")
+                print(f"  当前分配: {allocated:.2f} GB")
+                print(f"  当前保留: {reserved:.2f} GB")
+                print(f"  峰值分配: {max_allocated:.2f} GB")
+                print()
+        
+        ##
         # 方式2  strict=False :不完全匹配，只加载权重中存在的参数，不匹配就跳过
         # model.load_state_dict(torch.load(args.checkpoint, map_location='cpu'),  strict=False)
 
@@ -217,6 +254,7 @@ def main():
     info_dict["timeout"] = datetime.timedelta(seconds=args.timeout)
     # Start training loop
     for epoch in range(info_dict['max_epoch']):
+        print_memory_usage("初始化后")
         executor.epoch = epoch
         train_dataset.set_epoch(epoch)
         dist.barrier()

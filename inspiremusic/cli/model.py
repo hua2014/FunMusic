@@ -81,7 +81,11 @@ class InspireMusicModel:
 
     def load(self, llm_model, flow_model, hift_model, wavtokenizer_model):
         if llm_model is not None:
-            self.llm.load_state_dict(torch.load(llm_model, map_location=self.device, weights_only=True))
+            llm_model_state = torch.load(llm_model, map_location=self.device, weights_only=False)
+            if "module" in llm_model_state.keys():
+                self.llm.load_state_dict(llm_model_state["module"]) # deepspeed
+            else:
+                self.llm.load_state_dict(torch.load(llm_model, map_location=self.device, weights_only=True)) # torch_ddp
             self.llm.to(self.device).to(self.dtype).eval()
         else:
             self.llm = None
