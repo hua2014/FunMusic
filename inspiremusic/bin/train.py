@@ -35,7 +35,6 @@ from inspiremusic.utils.train_utils import (
     init_summarywriter, save_model,
     wrap_cuda_model, check_modify_and_save_config)
 
-
 def get_args():
     parser = argparse.ArgumentParser(description='training your network')
     parser.add_argument('--train_engine',
@@ -137,17 +136,15 @@ def main():
 
     # load checkpoint
     model = configs[args.model]
-
     if args.checkpoint is not None:
         # HQ
         # 方式1
         pretrained_dict = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
-        if "module" in pretrained_dict.keys():
+        if isinstance(pretrained_dict, dict) and "module" in pretrained_dict.keys():
             if dist.get_rank() == 0:
                 print("===> 'module key in pretrained_dict.keys'")
             pretrained_dict = pretrained_dict["module"] # deepspeed
-        else:
-            pass # torch_ddp
+        
         model_dict = model.state_dict()
 
         if "llm.pt" in args.checkpoint:
@@ -156,7 +153,7 @@ def main():
             # - key in model_dict 会排除 visual_feature_proj
             # - 'llm_embedding' not in key 会排除 llm_embedding
             pretrained_dict = {key: value for key, value in pretrained_dict.items() if (key in model_dict and 'llm_embedding' not in key)}
-            model_dict.update(pretrained_dict)
+        model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
 
         ##
@@ -208,14 +205,16 @@ def main():
                 param.requires_grad = True
             else:
                 param.requires_grad = False
-        if dist.get_rank() == 0:
-            for name, param in model.named_parameters():
-                if param.requires_grad == True:
-                    print("\t训练参数=>", name)
-                else:
-                    print("\t\t冻结参数=>", name)
-                # 
-            print("*" * 30)
+    
+    # 打印参数以确认
+    if dist.get_rank() == 0:
+        for name, param in model.named_parameters():
+            if param.requires_grad == True:
+                print("\t训练参数=>", name)
+            else:
+                print("\t\t冻结参数=>", name)
+            # 
+        print("*" * 30)
     #
     if args.lora:
         logging.info("Applying LoRA to the model...")
@@ -237,9 +236,9 @@ def main():
     # Dispatch model from cpu to gpu
     model = wrap_cuda_model(args, model)
 
-    # Get optimizer & scheduler
     model, optimizer, scheduler = init_optimizer_and_scheduler(args, configs, model)
 
+    
     # Initialize AMP for torch_ddp if fp16 is enabled
     scaler = None
     if args.fp16:
@@ -248,6 +247,7 @@ def main():
 
     # Save init checkpoints
     info_dict = deepcopy(configs['train_conf'])
+    ##
 
     # Get executor
     executor = Executor()
@@ -261,6 +261,7 @@ def main():
         group_join = dist.new_group(backend="gloo", timeout=info_dict["timeout"])
         executor.train_one_epoch(model, optimizer, scheduler, train_data_loader, cv_data_loader, writer, info_dict, group_join, scaler=scaler)
         dist.destroy_process_group(group_join)
+       
 
 if __name__ == '__main__':
     main()

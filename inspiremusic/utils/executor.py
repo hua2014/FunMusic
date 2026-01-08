@@ -84,6 +84,8 @@ class Executor:
                     model.train()
                 if (batch_idx + 1) % info_dict["accum_grad"] == 0:
                     self.step += 1
+
+                    
         dist.barrier()
         self.cv(model, cv_data_loader, writer, info_dict, on_batch_end=True, scaler=scaler)
 

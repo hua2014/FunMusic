@@ -117,7 +117,7 @@ def wrap_cuda_model(args, model):
                 num_gpus_per_node=local_world_size,
                 num_nodes=world_size // local_world_size)
     return model
-       
+
 def init_optimizer_and_scheduler(args, configs, model):
     if configs['train_conf']['optim'] == 'adam':
         optimizer = optim.Adam(model.parameters(), **configs['train_conf']['optim_conf'])
